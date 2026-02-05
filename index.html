@@ -13,7 +13,6 @@
     <!-- Google Icons -->
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 
-
     <style>
         /* Reset & Base */
         * {
@@ -725,32 +724,42 @@
         
         .stats-cards {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
             margin-top: 20px;
         }
         
         .stat-box {
-            padding: 20px;
+            padding: 15px;
             border-radius: 12px;
             text-align: center;
             transition: all 0.3s;
+            min-height: 90px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
         }
         
         .stat-box:hover {
             transform: translateY(-3px);
         }
         
-        .stat-box.used {
+        .stat-box.annual {
             background: #E3F2FD;
             color: #2196F3;
             box-shadow: 0 4px 10px rgba(33, 150, 243, 0.15);
         }
         
-        .stat-box.available {
-            background: #E8F5E9;
-            color: #4CAF50;
-            box-shadow: 0 4px 10px rgba(76, 175, 80, 0.15);
+        .stat-box.sick {
+            background: #FFF3CD;
+            color: #FF9800;
+            box-shadow: 0 4px 10px rgba(255, 152, 0, 0.15);
+        }
+        
+        .stat-box.unpaid {
+            background: #FCE4EC;
+            color: #E91E63;
+            box-shadow: 0 4px 10px rgba(233, 30, 99, 0.15);
         }
         
         /* Modal */
@@ -870,6 +879,10 @@
             .stat-value {
                 font-size: 1.8rem;
             }
+            
+            .stats-cards {
+                grid-template-columns: 1fr 1fr;
+            }
         }
     </style>
 </head>
@@ -913,7 +926,6 @@
                 <strong>💡 Hướng dẫn đăng nhập:</strong><br>
                 • Mã nhân viên là 4 chữ số (VD: 4810, 5035, ...)<br>
                 • Mật khẩu mặc định là mã nhân viên<br>
-                
             </p>
         </div>
     </div>
@@ -938,17 +950,25 @@
             </div>
         </div>
         
-        <!-- Stats -->
+        <!-- Stats (CHỈ HIỂN THỊ PHÉP NĂM) -->
         <div class="stats-grid">
             <div class="stat-card">
-                <h4>PHÉP CÒN LẠI</h4>
+                <h4>PHÉP NĂM CÒN LẠI</h4>
                 <div class="stat-value" id="remainingDays">0</div>
                 <span class="stat-unit">ngày</span>
+                <div style="font-size: 0.75rem; color: #4CAF50; margin-top: 5px;">
+                    <i class="material-icons" style="font-size: 0.8rem; vertical-align: middle;">info</i>
+                    Chỉ tính phép năm
+                </div>
             </div>
             <div class="stat-card">
-                <h4>ĐÃ SỬ DỤNG</h4>
+                <h4>PHÉP NĂM ĐÃ DÙNG</h4>
                 <div class="stat-value" id="usedDays">0</div>
                 <span class="stat-unit">ngày</span>
+                <div style="font-size: 0.75rem; color: #666; margin-top: 5px;">
+                    <i class="material-icons" style="font-size: 0.8rem; vertical-align: middle;">info</i>
+                    Không tính phép khác
+                </div>
             </div>
         </div>
         
@@ -1039,7 +1059,7 @@
     <script>
         // ==================== CẤU HÌNH ====================
         // THAY ĐỔI URL NÀY THÀNH URL DEPLOYMENT CỦA BẠN
-        const API_URL = 'https://script.google.com/macros/s/AKfycbyn3Gw-84Qu0oUWjkamBHDxCBKL-5fbSUzaOhykFev5TWLklO4cx98MxLq88BmoAU5-cA/exec';
+        const API_URL = 'https://script.google.com/macros/s/AKfycbyySLmEcfVihNdajMzM-ljJZur7dVXm2nOqu2KsIK5fTZG8pmu8f8wywW6xQLKXWOnQEw/exec';
         
         // ==================== BIẾN TOÀN CỤC ====================
         let currentUser = null;
@@ -1283,13 +1303,20 @@
             if (!currentUser) return;
             
             try {
-                // Load user info
+                // Load user info - CHỈ LẤY PHÉP NĂM
                 const userResponse = await fetch(`${API_URL}?action=get_user_info&userId=${currentUser.id}`);
                 const userData = await userResponse.json();
                 
                 if (userData.success && userData.userInfo) {
-                    document.getElementById('remainingDays').textContent = userData.userInfo.remainingDays;
-                    document.getElementById('usedDays').textContent = userData.userInfo.usedDays;
+                    // CHỈ HIỂN THỊ PHÉP NĂM
+                    document.getElementById('remainingDays').textContent = userData.userInfo.annualLeaveRemaining || 0;
+                    document.getElementById('usedDays').textContent = userData.userInfo.annualLeaveUsed || 0;
+                    
+                    console.log('Phép năm:', {
+                        đãDùng: userData.userInfo.annualLeaveUsed,
+                        cònLại: userData.userInfo.annualLeaveRemaining,
+                        tổng: userData.userInfo.annualLeaveTotal
+                    });
                 }
                 
                 // Load leaves for home
@@ -1427,32 +1454,33 @@
                             <span class="info-label">Phòng ban:</span>
                             <span class="info-value">${currentUser.department || 'Không xác định'}</span>
                         </div>
-                        
-                        <div class="info-item">
-                            <span class="info-label">Tổng phép năm:</span>
-                            <span class="info-value">${currentUser.leaveDays || 12} ngày</span>
-                        </div>
-                        
-                        <div class="info-item">
-                            <span class="info-label">Phép còn lại:</span>
-                            <span class="info-value" id="profileRemainingDays" style="color: #4CAF50; font-weight: bold;">Đang tải...</span>
-                        </div>
                     </div>
                     
                     <div style="margin-top: 30px;">
                         <h4 style="margin-bottom: 15px; color: #333; display: flex; align-items: center; gap: 8px;">
                             <i class="material-icons">trending_up</i>
-                            Thống kê
+                            Thống kê phép
                         </h4>
                         <div class="stats-cards">
-                            <div class="stat-box used">
-                                <div style="font-size: 1.8rem; font-weight: bold;" id="profileUsedDays">0</div>
-                                <div style="font-size: 0.9rem;">Ngày đã dùng</div>
+                            <div class="stat-box annual">
+                                <div style="font-size: 1.5rem; font-weight: bold;" id="profileAnnualRemaining">0</div>
+                                <div style="font-size: 0.8rem;">Phép năm còn lại</div>
                             </div>
-                            <div class="stat-box available">
-                                <div style="font-size: 1.8rem; font-weight: bold;" id="profileAvailableDays">0</div>
-                                <div style="font-size: 0.9rem;">Ngày có thể dùng</div>
+                            <div class="stat-box sick">
+                                <div style="font-size: 1.5rem; font-weight: bold;" id="profileSickLeave">0</div>
+                                <div style="font-size: 0.8rem;">Phép ốm đã dùng</div>
                             </div>
+                            <div class="stat-box unpaid">
+                                <div style="font-size: 1.5rem; font-weight: bold;" id="profileUnpaidLeave">0</div>
+                                <div style="font-size: 0.8rem;">Nghỉ không lương</div>
+                            </div>
+                        </div>
+                        
+                        <div style="margin-top: 15px; font-size: 0.85rem; color: #666; background: #f9f9f9; padding: 15px; border-radius: 10px;">
+                            <strong>📌 Lưu ý:</strong><br>
+                            • <span style="color: #2196F3;">Phép năm</span>: Trừ vào quỹ phép năm<br>
+                            • <span style="color: #FF9800;">Phép ốm</span>: Không trừ phép năm<br>
+                            • <span style="color: #E91E63;">Nghỉ không lương</span>: Không trừ phép năm
                         </div>
                     </div>
                     
@@ -1465,18 +1493,22 @@
                 </div>
             `;
             
-            // Load thông tin phép
+            // Load thông tin phép CHI TIẾT
             try {
                 const response = await fetch(`${API_URL}?action=get_user_info&userId=${currentUser.id}`);
                 const data = await response.json();
                 
                 if (data.success && data.userInfo) {
-                    document.getElementById('profileRemainingDays').textContent = 
-                        `${data.userInfo.remainingDays} ngày`;
-                    document.getElementById('profileUsedDays').textContent = 
-                        `${data.userInfo.usedDays} ngày`;
-                    document.getElementById('profileAvailableDays').textContent = 
-                        `${data.userInfo.remainingDays} ngày`;
+                    // Hiển thị thông tin chi tiết
+                    document.getElementById('profileAnnualRemaining').textContent = 
+                        `${data.userInfo.annualLeaveRemaining} ngày`;
+                    document.getElementById('profileSickLeave').textContent = 
+                        `${data.userInfo.sickLeaveUsed} ngày`;
+                    document.getElementById('profileUnpaidLeave').textContent = 
+                        `${data.userInfo.unpaidLeaveUsed} ngày`;
+                    
+                    // Có thể thêm các loại phép khác nếu cần
+                    console.log('Chi tiết phép:', data.userInfo);
                 }
             } catch (error) {
                 console.error('Load profile info error:', error);
@@ -1507,7 +1539,12 @@
             container.innerHTML = recentLeaves.map(leave => `
                 <div class="leave-item ${leave.status}">
                     <div class="leave-header">
-                        <div class="leave-type">${leave.type}</div>
+                        <div class="leave-type">
+                            ${leave.type}
+                            ${leave.type === 'Phép năm' ? 
+                                '<span style="font-size: 0.7rem; color: #2196F3; background: #E3F2FD; padding: 1px 6px; border-radius: 4px; margin-left: 5px;">(Trừ phép)</span>' : 
+                                '<span style="font-size: 0.7rem; color: #666; background: #f5f5f5; padding: 1px 6px; border-radius: 4px; margin-left: 5px;">(Không trừ)</span>'}
+                        </div>
                         <span class="leave-status status-${leave.status}">
                             ${getStatusText(leave.status)}
                         </span>
@@ -1568,7 +1605,7 @@
                 <div style="padding: 15px;">
                     <div style="font-size: 0.9rem; color: #666; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
                         <span>Tổng số: <strong>${leaves.length}</strong> đơn</span>
-                        <span id="historyTotalDays" style="color: #2196F3; font-weight: bold;"></span>
+                        <span id="historyAnnualDays" style="color: #2196F3; font-weight: bold;"></span>
                     </div>
                     
                     <div style="overflow-x: auto;">
@@ -1586,7 +1623,8 @@
                             <tbody>
             `;
             
-            let totalDays = 0;
+            let totalAnnualDays = 0;
+            let totalAllDays = 0;
             
             leaves.forEach(leave => {
                 const statusColor = leave.status === 'approved' ? '#4CAF50' : 
@@ -1594,12 +1632,25 @@
                 const statusText = leave.status === 'approved' ? 'Đã duyệt' : 
                                   leave.status === 'rejected' ? 'Từ chối' : 'Chờ duyệt';
                 const days = parseFloat(leave.days) || 0;
-                totalDays += days;
+                
+                // Tính tổng số ngày theo loại phép
+                totalAllDays += days;
+                if (leave.type === 'Phép năm') {
+                    totalAnnualDays += days;
+                }
+                
+                // Xác định màu sắc cho loại phép
+                const typeColor = leave.type === 'Phép năm' ? '#2196F3' : 
+                                 leave.type === 'Phép ốm' ? '#FF9800' : '#666';
                 
                 html += `
                     <tr>
                         <td><strong>${leave.id}</strong></td>
-                        <td>${leave.type}</td>
+                        <td>
+                            <span style="color: ${typeColor}; font-weight: ${leave.type === 'Phép năm' ? 'bold' : 'normal'}">
+                                ${leave.type}
+                            </span>
+                        </td>
                         <td>
                             ${formatDate(leave.fromDate)}<br>
                             <small style="color: #666;">→ ${formatDate(leave.toDate)}</small>
@@ -1621,11 +1672,26 @@
                             </tbody>
                         </table>
                     </div>
+                    
+                    <div style="margin-top: 20px; padding: 15px; background: #f9f9f9; border-radius: 10px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                            <span>Tổng tất cả các loại phép:</span>
+                            <span style="font-weight: bold;">${totalAllDays.toFixed(1)} ngày</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                            <span>Trong đó phép năm:</span>
+                            <span style="font-weight: bold; color: #2196F3;">${totalAnnualDays.toFixed(1)} ngày</span>
+                        </div>
+                        <div style="font-size: 0.85rem; color: #666; margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd;">
+                            <i class="material-icons" style="font-size: 0.8rem; vertical-align: middle;">info</i>
+                            Chỉ <strong>Phép năm</strong> trừ vào quỹ phép năm của bạn
+                        </div>
+                    </div>
                 </div>
             `;
             
             container.innerHTML = html;
-            document.getElementById('historyTotalDays').textContent = `Tổng: ${totalDays} ngày`;
+            document.getElementById('historyAnnualDays').textContent = `Phép năm: ${totalAnnualDays} ngày`;
         }
         
         function displayApprovalLeaves(leaves) {
@@ -1658,7 +1724,14 @@
                     </div>
                     
                     <div class="leave-reason">
-                        <strong>Loại:</strong> ${leave.type}<br>
+                        <strong>Loại:</strong> 
+                        <span style="color: ${leave.type === 'Phép năm' ? '#2196F3' : '#666'}; font-weight: ${leave.type === 'Phép năm' ? 'bold' : 'normal'}">
+                            ${leave.type}
+                        </span>
+                        ${leave.type === 'Phép năm' ? 
+                            '<span style="font-size: 0.7rem; color: #2196F3; background: #E3F2FD; padding: 1px 6px; border-radius: 4px; margin-left: 5px;">(Trừ phép năm)</span>' : 
+                            '<span style="font-size: 0.7rem; color: #666; background: #f5f5f5; padding: 1px 6px; border-radius: 4px; margin-left: 5px;">(Không trừ phép)</span>'}
+                        <br>
                         <strong>Lý do:</strong> ${leave.reason}
                     </div>
                     
@@ -1714,7 +1787,14 @@
                                 </div>
                                 
                                 <div class="leave-reason">
-                                    <strong>Loại:</strong> ${leave.type}<br>
+                                    <strong>Loại:</strong> 
+                                    <span style="color: ${leave.type === 'Phép năm' ? '#2196F3' : '#666'}; font-weight: ${leave.type === 'Phép năm' ? 'bold' : 'normal'}">
+                                        ${leave.type}
+                                    </span>
+                                    ${leave.type === 'Phép năm' ? 
+                                        '<span style="font-size: 0.7rem; color: #2196F3; background: #E3F2FD; padding: 1px 6px; border-radius: 4px; margin-left: 5px;">(Trừ phép năm)</span>' : 
+                                        '<span style="font-size: 0.7rem; color: #666; background: #f5f5f5; padding: 1px 6px; border-radius: 4px; margin-left: 5px;">(Không trừ phép)</span>'}
+                                    <br>
                                     <strong>Lý do:</strong> ${leave.reason}
                                 </div>
                                 
@@ -1739,7 +1819,7 @@
             }
         }
         
-        // ==================== CREATE LEAVE MODAL ====================
+        // ==================== CREATE LEAVE MODAL (VỚI CẢNH BÁO) ====================
         function showCreateLeaveModal() {
             const modalHTML = `
                 <div class="modal-overlay" id="leaveModal">
@@ -1751,14 +1831,15 @@
                         
                         <div style="margin-bottom: 15px;">
                             <label style="display: block; margin-bottom: 5px; color: #555;">Loại nghỉ phép</label>
-                            <select id="modalType" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px; background: #f9f9f9;">
-                                <option value="Phép năm">Phép năm</option>
-                                <option value="Phép ốm">Phép ốm</option>
-                                <option value="Nghỉ không lương">Nghỉ không lương</option>
-                                <option value="Nghỉ kết hôn">Nghỉ kết hôn</option>
-                                <option value="Nghỉ thai sản">Nghỉ thai sản</option>
-                                <option value="Nghỉ hiếu hỉ">Nghỉ hiếu hỉ</option>
+                            <select id="modalType" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px; background: #f9f9f9;" onchange="showLeaveTypeWarning(this.value)">
+                                <option value="Phép năm">Phép năm (trừ vào quỹ phép năm)</option>
+                                <option value="Phép ốm">Phép ốm (không trừ phép năm)</option>
+                                <option value="Nghỉ không lương">Nghỉ không lương (không trừ phép năm)</option>
+                                <option value="Nghỉ kết hôn">Nghỉ kết hôn (không trừ phép năm)</option>
+                                <option value="Nghỉ thai sản">Nghỉ thai sản (không trừ phép năm)</option>
+                                <option value="Nghỉ hiếu hỉ">Nghỉ hiếu hỉ (không trừ phép năm)</option>
                             </select>
+                            <div id="leaveTypeWarning" style="font-size: 0.85rem; margin-top: 5px; color: #666; display: none;"></div>
                         </div>
                         
                         <div style="margin-bottom: 15px;">
@@ -1807,12 +1888,35 @@
             document.getElementById('modalFromDate').addEventListener('change', calculateModalDays);
             document.getElementById('modalToDate').addEventListener('change', calculateModalDays);
             
+            // Show initial warning
+            showLeaveTypeWarning('Phép năm');
+            
             // Close modal when clicking outside
             modal.addEventListener('click', function(e) {
                 if (e.target === modal) {
                     closeModal();
                 }
             });
+        }
+        
+        function showLeaveTypeWarning(type) {
+            const warningElement = document.getElementById('leaveTypeWarning');
+            
+            if (type === 'Phép năm') {
+                warningElement.innerHTML = '⚠️ <strong>Chú ý:</strong> Loại phép này sẽ TRỪ vào quỹ phép năm của bạn.';
+                warningElement.style.color = '#2196F3';
+                warningElement.style.background = '#E3F2FD';
+                warningElement.style.padding = '8px';
+                warningElement.style.borderRadius = '6px';
+                warningElement.style.display = 'block';
+            } else {
+                warningElement.innerHTML = '✅ Loại phép này KHÔNG trừ vào quỹ phép năm.';
+                warningElement.style.color = '#4CAF50';
+                warningElement.style.background = '#E8F5E9';
+                warningElement.style.padding = '8px';
+                warningElement.style.borderRadius = '6px';
+                warningElement.style.display = 'block';
+            }
         }
         
         function calculateModalDays() {
@@ -1872,6 +1976,26 @@
             if (reason.length < 10) {
                 showModalMessage('⛔ Lý do phải có ít nhất 10 ký tự', 'error');
                 return;
+            }
+            
+            // Kiểm tra phép năm còn đủ không
+            if (type === 'Phép năm') {
+                try {
+                    const response = await fetch(`${API_URL}?action=get_user_info&userId=${currentUser.id}`);
+                    const data = await response.json();
+                    
+                    if (data.success && data.userInfo) {
+                        const remaining = data.userInfo.annualLeaveRemaining || 0;
+                        const requested = parseFloat(days);
+                        
+                        if (requested > remaining) {
+                            showModalMessage(`⛔ Không đủ phép năm! Bạn còn ${remaining} ngày, nhưng xin ${requested} ngày.`, 'error');
+                            return;
+                        }
+                    }
+                } catch (error) {
+                    console.error('Kiểm tra phép năm lỗi:', error);
+                }
             }
             
             showModalMessage('🔄 Đang gửi đơn...', 'info');
@@ -1947,6 +2071,8 @@
                     } else {
                         loadPendingLeaves();
                     }
+                    // Refresh home data để cập nhật phép năm
+                    loadHomeData();
                 } else {
                     showMessage('messageContainer', '⛔ ' + data.message, 'error');
                 }
