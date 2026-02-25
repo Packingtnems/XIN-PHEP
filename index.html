@@ -834,6 +834,112 @@
             color: #555;
         }
         
+        /* Notification Bell */
+        .notification-bell {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #FF5722;
+            color: white;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(255, 87, 34, 0.4);
+            z-index: 99;
+            transition: all 0.3s;
+        }
+        
+        .notification-bell:hover {
+            transform: scale(1.1);
+        }
+        
+        .notification-bell .badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: #F44336;
+            color: white;
+            font-size: 0.7rem;
+            font-weight: bold;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        /* Notification Panel */
+        .notification-panel {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            width: 350px;
+            max-height: 500px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+            animation: slideDown 0.3s ease;
+        }
+        
+        .notification-header {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .notification-header h3 {
+            margin: 0;
+            color: #333;
+        }
+        
+        .notification-item {
+            padding: 15px;
+            border-bottom: 1px solid #f5f5f5;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .notification-item:hover {
+            background: #f9f9f9;
+        }
+        
+        .notification-item.unread {
+            background: #E3F2FD;
+        }
+        
+        .notification-title {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .notification-message {
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .notification-time {
+            font-size: 0.8rem;
+            color: #999;
+        }
+        
+        .notification-actions {
+            padding: 10px;
+            text-align: center;
+            border-top: 1px solid #eee;
+        }
+        
         /* Scrollbar */
         ::-webkit-scrollbar {
             width: 6px;
@@ -883,10 +989,48 @@
             .stats-cards {
                 grid-template-columns: 1fr 1fr;
             }
+            
+            .notification-bell {
+                top: 10px;
+                right: 10px;
+                width: 40px;
+                height: 40px;
+            }
+            
+            .notification-panel {
+                width: calc(100% - 40px);
+                right: 20px;
+                left: 20px;
+                top: 60px;
+            }
         }
     </style>
 </head>
 <body>
+    <!-- Notification Bell -->
+    <div class="notification-bell hidden" id="notificationBell" onclick="toggleNotifications()">
+        <i class="material-icons">notifications</i>
+        <span class="badge hidden" id="notificationCount">0</span>
+    </div>
+    
+    <!-- Notification Panel -->
+    <div class="notification-panel" id="notificationPanel">
+        <div class="notification-header">
+            <h3><i class="material-icons">notifications</i> Thông báo</h3>
+            <button onclick="markAllAsRead()" style="background: none; border: none; color: #2196F3; cursor: pointer;">
+                <i class="material-icons">done_all</i> Đọc tất cả
+            </button>
+        </div>
+        <div id="notificationList">
+            <!-- Notifications loaded here -->
+        </div>
+        <div class="notification-actions">
+            <button onclick="clearNotifications()" style="background: #f5f5f5; border: none; padding: 8px 15px; border-radius: 20px; color: #666; cursor: pointer;">
+                <i class="material-icons">delete_sweep</i> Xóa tất cả
+            </button>
+        </div>
+    </div>
+    
     <!-- Install Button -->
     <button id="installBtn" class="install-btn hidden">
         <i class="material-icons">get_app</i> Cài App
@@ -1058,13 +1202,14 @@
 
     <script>
         // ==================== CẤU HÌNH ====================
-        // THAY ĐỔI URL NÀY THÀNH URL DEPLOYMENT CỦA BẠN
-        const API_URL = 'https://script.google.com/macros/s/AKfycbyySLmEcfVihNdajMzM-ljJZur7dVXm2nOqu2KsIK5fTZG8pmu8f8wywW6xQLKXWOnQEw/exec';
+        const API_URL = 'https://script.google.com/macros/s/AKfycbwnSk9q7HVBawyLuUZBFlJ48iLWS1Yjg_tEGtYRulC-9_Ufjb9BsJIpSEPOwPl1V2sbfg/exec';
         
         // ==================== BIẾN TOÀN CỤC ====================
         let currentUser = null;
         let currentTab = 'home';
         let deferredPrompt = null;
+        let notificationCheckInterval = null;
+        let lastNotificationCheck = 0;
         
         // ==================== KHỞI ĐỘNG ====================
         document.addEventListener('DOMContentLoaded', function() {
@@ -1072,6 +1217,7 @@
             checkLoginStatus();
             setupEventListeners();
             setupPWA();
+            setupNotifications();
             
             // Auto-fill demo credentials for testing
             setTimeout(() => {
@@ -1109,6 +1255,194 @@
                 deferredPrompt = null;
                 showMessage('messageContainer', '✅ Ứng dụng đã được cài đặt!', 'success');
             });
+            
+            // Request notification permission
+            if ('Notification' in window && Notification.permission === 'default') {
+                setTimeout(() => {
+                    Notification.requestPermission();
+                }, 2000);
+            }
+        }
+        
+        // ==================== NOTIFICATIONS ====================
+        function setupNotifications() {
+            // Kiểm tra thông báo mỗi 30 giây
+            notificationCheckInterval = setInterval(checkForNewNotifications, 30000);
+            
+            // Kiểm tra ngay khi load
+            setTimeout(checkForNewNotifications, 2000);
+        }
+        
+        function showNotificationBell() {
+            document.getElementById('notificationBell').classList.remove('hidden');
+        }
+        
+        function toggleNotifications() {
+            const panel = document.getElementById('notificationPanel');
+            if (panel.style.display === 'block') {
+                panel.style.display = 'none';
+            } else {
+                panel.style.display = 'block';
+                loadNotifications();
+            }
+        }
+        
+        async function loadNotifications() {
+            if (!currentUser) return;
+            
+            try {
+                const response = await fetch(`${API_URL}?action=get_notifications&userId=${currentUser.id}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayNotifications(data.notifications);
+                    updateNotificationCount(data.unreadCount);
+                }
+            } catch (error) {
+                console.error('Load notifications error:', error);
+            }
+        }
+        
+        function displayNotifications(notifications) {
+            const container = document.getElementById('notificationList');
+            
+            if (!notifications || notifications.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 40px 20px; color: #666;">
+                        <i class="material-icons" style="font-size: 3rem; opacity: 0.3;">notifications_none</i>
+                        <p>Không có thông báo</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = notifications.map(notif => `
+                <div class="notification-item ${notif.read ? '' : 'unread'}" onclick="viewNotification('${notif.id}')">
+                    <div class="notification-title">
+                        ${getNotificationIcon(notif.type)} ${notif.title}
+                    </div>
+                    <div class="notification-message">${notif.message}</div>
+                    <div class="notification-time">
+                        <i class="material-icons" style="font-size: 0.8rem; vertical-align: middle;">schedule</i>
+                        ${formatDateTime(notif.createdAt)}
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function getNotificationIcon(type) {
+            const icons = {
+                'new_leave': '📋',
+                'leave_approved': '✅',
+                'leave_rejected': '❌',
+                'leave_pending': '⏳',
+                'system': '🔔'
+            };
+            return icons[type] || '📢';
+        }
+        
+        async function checkForNewNotifications() {
+            if (!currentUser) return;
+            
+            try {
+                const response = await fetch(`${API_URL}?action=check_notifications&userId=${currentUser.id}&lastCheck=${lastNotificationCheck}`);
+                const data = await response.json();
+                
+                if (data.success && data.hasNew) {
+                    // Có thông báo mới
+                    showNotificationBell();
+                    updateNotificationCount(data.unreadCount);
+                    
+                    // Hiển thị thông báo push nếu có quyền
+                    if (data.latestNotification && 'Notification' in window && Notification.permission === 'granted') {
+                        showPushNotification(data.latestNotification);
+                    }
+                    
+                    // Nếu đang ở tab duyệt đơn và có đơn mới, refresh
+                    if (currentTab === 'approval' && data.newPendingCount > 0) {
+                        loadApprovalData();
+                    }
+                }
+                
+                lastNotificationCheck = Date.now();
+            } catch (error) {
+                console.error('Check notifications error:', error);
+            }
+        }
+        
+        function showPushNotification(notification) {
+            if ('Notification' in window && Notification.permission === 'granted') {
+                const options = {
+                    body: notification.message,
+                    icon: '/icon-192.png',
+                    badge: '/icon-192.png',
+                    tag: 'leave-notification'
+                };
+                
+                new Notification(notification.title, options);
+            }
+        }
+        
+        function updateNotificationCount(count) {
+            const badge = document.getElementById('notificationCount');
+            if (count > 0) {
+                badge.textContent = count;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+        
+        async function markAllAsRead() {
+            if (!currentUser) return;
+            
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        action: 'mark_notifications_read',
+                        userId: currentUser.id
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    updateNotificationCount(0);
+                    loadNotifications();
+                }
+            } catch (error) {
+                console.error('Mark as read error:', error);
+            }
+        }
+        
+        async function clearNotifications() {
+            if (!currentUser) return;
+            
+            if (confirm('Bạn có chắc chắn muốn xóa tất cả thông báo?')) {
+                try {
+                    const response = await fetch(API_URL, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            action: 'clear_notifications',
+                            userId: currentUser.id
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    if (data.success) {
+                        updateNotificationCount(0);
+                        loadNotifications();
+                    }
+                } catch (error) {
+                    console.error('Clear notifications error:', error);
+                }
+            }
+        }
+        
+        function viewNotification(notificationId) {
+            // Đánh dấu đã đọc và xử lý
+            console.log('View notification:', notificationId);
+            // Có thể điều hướng đến đơn liên quan
         }
         
         // ==================== DATE ====================
@@ -1142,12 +1476,14 @@
         function showLoginScreen() {
             document.getElementById('loginScreen').classList.remove('hidden');
             document.getElementById('appContent').classList.add('hidden');
+            document.getElementById('notificationBell').classList.add('hidden');
         }
         
         function showAppContent() {
             document.getElementById('loginScreen').classList.add('hidden');
             document.getElementById('appContent').classList.remove('hidden');
             updateUserInfo();
+            showNotificationBell();
         }
         
         // ==================== EVENT LISTENERS ====================
@@ -1187,6 +1523,18 @@
                     switchTab(tabName);
                 });
             });
+            
+            // Close notification panel when clicking outside
+            document.addEventListener('click', function(event) {
+                const panel = document.getElementById('notificationPanel');
+                const bell = document.getElementById('notificationBell');
+                
+                if (panel.style.display === 'block' && 
+                    !panel.contains(event.target) && 
+                    !bell.contains(event.target)) {
+                    panel.style.display = 'none';
+                }
+            });
         }
         
         // ==================== LOGIN HANDLER ====================
@@ -1219,6 +1567,9 @@
                     showAppContent();
                     switchTab('home');
                     showMessage('loginMessage', '✅ Đăng nhập thành công!', 'success');
+                    
+                    // Kiểm tra thông báo sau khi đăng nhập
+                    setTimeout(checkForNewNotifications, 1000);
                     
                     // Clear login form
                     document.getElementById('username').value = '';
@@ -1311,12 +1662,6 @@
                     // CHỈ HIỂN THỊ PHÉP NĂM
                     document.getElementById('remainingDays').textContent = userData.userInfo.annualLeaveRemaining || 0;
                     document.getElementById('usedDays').textContent = userData.userInfo.annualLeaveUsed || 0;
-                    
-                    console.log('Phép năm:', {
-                        đãDùng: userData.userInfo.annualLeaveUsed,
-                        cònLại: userData.userInfo.annualLeaveRemaining,
-                        tổng: userData.userInfo.annualLeaveTotal
-                    });
                 }
                 
                 // Load leaves for home
@@ -1475,13 +1820,6 @@
                                 <div style="font-size: 0.8rem;">Nghỉ không lương</div>
                             </div>
                         </div>
-                        
-                        <div style="margin-top: 15px; font-size: 0.85rem; color: #666; background: #f9f9f9; padding: 15px; border-radius: 10px;">
-                            <strong>📌 Lưu ý:</strong><br>
-                            • <span style="color: #2196F3;">Phép năm</span>: Trừ vào quỹ phép năm<br>
-                            • <span style="color: #FF9800;">Phép ốm</span>: Không trừ phép năm<br>
-                            • <span style="color: #E91E63;">Nghỉ không lương</span>: Không trừ phép năm
-                        </div>
                     </div>
                     
                     <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
@@ -1506,9 +1844,6 @@
                         `${data.userInfo.sickLeaveUsed} ngày`;
                     document.getElementById('profileUnpaidLeave').textContent = 
                         `${data.userInfo.unpaidLeaveUsed} ngày`;
-                    
-                    // Có thể thêm các loại phép khác nếu cần
-                    console.log('Chi tiết phép:', data.userInfo);
                 }
             } catch (error) {
                 console.error('Load profile info error:', error);
@@ -1682,10 +2017,6 @@
                             <span>Trong đó phép năm:</span>
                             <span style="font-weight: bold; color: #2196F3;">${totalAnnualDays.toFixed(1)} ngày</span>
                         </div>
-                        <div style="font-size: 0.85rem; color: #666; margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd;">
-                            <i class="material-icons" style="font-size: 0.8rem; vertical-align: middle;">info</i>
-                            Chỉ <strong>Phép năm</strong> trừ vào quỹ phép năm của bạn
-                        </div>
                     </div>
                 </div>
             `;
@@ -1819,7 +2150,7 @@
             }
         }
         
-        // ==================== CREATE LEAVE MODAL (VỚI CẢNH BÁO) ====================
+        // ==================== CREATE LEAVE MODAL ====================
         function showCreateLeaveModal() {
             const modalHTML = `
                 <div class="modal-overlay" id="leaveModal">
@@ -1879,8 +2210,6 @@
             
             // Set min dates to today
             const today = new Date().toISOString().split('T')[0];
-            document.getElementById('modalFromDate').min = today;
-            document.getElementById('modalToDate').min = today;
             document.getElementById('modalFromDate').value = today;
             document.getElementById('modalToDate').value = today;
             
@@ -1973,8 +2302,8 @@
                 return;
             }
             
-            if (reason.length < 10) {
-                showModalMessage('⛔ Lý do phải có ít nhất 10 ký tự', 'error');
+            if (reason.length < 3) {
+                showModalMessage('⛔ Lý do phải có ít nhất 3 ký tự', 'error');
                 return;
             }
             
@@ -2020,6 +2349,9 @@
                 if (data.success) {
                     showModalMessage('✅ ' + data.message, 'success');
                     
+                    // Gửi thông báo đến quản lý
+                    sendNotificationToManagers(currentUser.name, type, fromDate, toDate, reason);
+                    
                     setTimeout(() => {
                         closeModal();
                         loadHomeData();
@@ -2031,6 +2363,29 @@
             } catch (error) {
                 console.error('Submit error:', error);
                 showModalMessage('🌐 Lỗi kết nối đến server', 'error');
+            }
+        }
+        
+        async function sendNotificationToManagers(userName, type, fromDate, toDate, reason) {
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        action: 'notify_managers',
+                        userName: userName,
+                        type: type,
+                        fromDate: fromDate,
+                        toDate: toDate,
+                        reason: reason
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    console.log('✅ Đã gửi thông báo đến quản lý');
+                }
+            } catch (error) {
+                console.error('Send notification error:', error);
             }
         }
         
@@ -2065,6 +2420,10 @@
                 
                 if (data.success) {
                     showMessage('messageContainer', '✅ ' + data.message, 'success');
+                    
+                    // Gửi thông báo cho nhân viên
+                    sendApprovalNotification(leaveId, 'approved');
+                    
                     // Reload current tab data
                     if (currentTab === 'approval') {
                         loadApprovalData();
@@ -2111,6 +2470,10 @@
                 
                 if (data.success) {
                     showMessage('messageContainer', '❌ ' + data.message, 'success');
+                    
+                    // Gửi thông báo cho nhân viên
+                    sendApprovalNotification(leaveId, 'rejected', reason);
+                    
                     // Reload current tab data
                     if (currentTab === 'approval') {
                         loadApprovalData();
@@ -2123,6 +2486,27 @@
             } catch (error) {
                 console.error('Reject error:', error);
                 showMessage('messageContainer', '🌐 Lỗi kết nối', 'error');
+            }
+        }
+        
+        async function sendApprovalNotification(leaveId, status, reason = '') {
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        action: 'send_approval_notification',
+                        leaveId: leaveId,
+                        status: status,
+                        reason: reason
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    console.log('✅ Đã gửi thông báo duyệt đơn');
+                }
+            } catch (error) {
+                console.error('Send approval notification error:', error);
             }
         }
         
@@ -2175,17 +2559,18 @@
             if (confirm('Bạn có chắc chắn muốn đăng xuất?')) {
                 localStorage.removeItem('leaveApp_user');
                 currentUser = null;
+                clearInterval(notificationCheckInterval);
                 showLoginScreen();
                 showMessage('loginMessage', '✅ Đã đăng xuất thành công', 'success');
             }
         }
         
         // ==================== OFFLINE SUPPORT ====================
-        // Check network connection
         window.addEventListener('online', () => {
             showMessage('messageContainer', '✅ Đã kết nối lại internet', 'success');
             if (currentUser) {
                 setTimeout(() => loadHomeData(), 1000);
+                setTimeout(checkForNewNotifications, 2000);
             }
         });
         
@@ -2193,11 +2578,20 @@
             showMessage('messageContainer', '⚠️ Bạn đang offline. Một số tính năng có thể không hoạt động.', 'warning');
         });
     </script>
-<script>
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/service-worker.js');
-}
-</script>
 
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then(function(registration) {
+                        console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                    })
+                    .catch(function(error) {
+                        console.log('ServiceWorker registration failed: ', error);
+                    });
+            });
+        }
+    </script>
 </body>
 </html>
